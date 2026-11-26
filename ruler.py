@@ -858,6 +858,8 @@ def build_ruler_group(bbox, opts, root=None):
             "fill": text_color,
             "stroke": text_border_color,
             "stroke-width": text_border_width_s,
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
             "paint-order": "stroke fill",
             "style": "font-size:%spx;text-anchor:%s;font-family:sans-serif" % (
                 fmt_number(size), anchor),
@@ -965,6 +967,8 @@ def build_ruler_group(bbox, opts, root=None):
   paint-order:stroke fill;
   stroke:%s;
   stroke-width:%s;
+  stroke-linecap:round;
+  stroke-linejoin:round;
 }
 %s .ruler-label { fill:%s; font-size:%spx; font-family:sans-serif; }
 %s .ruler-total { fill:%s; font-weight:bold; font-size:%spx; font-family:sans-serif; }

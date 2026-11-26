@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.14
+
+- Package details now state that Inkscape must be fully restarted after
+  installing. The note appears in the Extension Manager summary, INX
+  descriptions, menu tips and README.
+- Clarified that closing all Inkscape windows and reopening is required before
+  the new menu entries become available.
+
+## 1.13
+
+- Extension INX id, preset ids and package metadata id are now
+  `nastarixa.inkscape.ruler`, so Extension Manager creates the same folder name
+  as the batch installers.
+- Installers also remove legacy `org.inkscape.effect.object_ruler` folders.
+
+## 1.12
+
+- Label strokes now use round caps and round joins for zero labels, number
+  labels and total labels. Ruler lines still use square caps.
+
 ## 1.11
 
 - `Nastarxa Inkscape Ruler.zip` is now the single release package for Extension Manager.

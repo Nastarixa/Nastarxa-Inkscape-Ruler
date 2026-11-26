@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
   <name>Nastarxa Inkscape Ruler Extension - Dark export</name>
-  <id>org.inkscape.effect.object_ruler_export</id>
-  <description>Draw measuring rulers using the Dark export style.</description>
+  <id>nastarixa.inkscape.ruler_export</id>
+  <description>Draw measuring rulers using the Dark export style. After installing, fully restart Inkscape before using this extension.</description>
   <param name="ruler_tabs" type="notebook">
     <page name="measure" gui-text="Measurement">
       <param name="unit" type="optiongroup" appearance="combo" gui-text="Ruler unit">
@@ -67,7 +67,7 @@
     <effects-menu>
       <submenu name="Ruler Tools" />
     </effects-menu>
-    <menu-tip>Draw rulers using the Dark export preset</menu-tip>
+    <menu-tip>Draw rulers using the Dark export preset (restart Inkscape after install)</menu-tip>
   </effect>
   <script>
     <command location="inx" interpreter="python">ruler.py</command>

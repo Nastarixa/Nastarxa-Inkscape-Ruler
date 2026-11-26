@@ -1,6 +1,7 @@
 """Small smoke tests for ruler.py (no Inkscape required)."""
 import atexit
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -519,6 +520,23 @@ def test_text_border():
     print("text border: OK (always applied, legacy alias works)")
 
 
+def test_text_stroke_caps_joins():
+    root = run(["--id=box", "--unit=px", "--show-labels=true"])
+    labels = text_elements(root, "ruler-label")
+    totals = text_elements(root, "ruler-total")
+    assert labels and totals
+    assert any(t.text == "0" for t in labels)
+    assert any(t.text != "0" for t in labels)
+    for elem in text_elements(root):
+        assert elem.get("stroke-linecap") == "round", elem.attrib
+        assert elem.get("stroke-linejoin") == "round", elem.attrib
+    style = css(root)
+    assert "stroke-linecap:round" in style
+    assert "stroke-linejoin:round" in style
+    assert all(line.get("stroke-linecap") == "square" for line in lines(root))
+    print("text stroke caps/joins: OK (round for zero, numbers and totals)")
+
+
 def test_presets():
     # Preset key -> (line color, text fill color, text border color).
     expected_colors = {
@@ -574,7 +592,11 @@ def test_generated_preset_inx():
         ext_id = root.findtext(INX_NS + "id")
         assert ext_id and ext_id not in ids, ext_id
         ids.add(ext_id)
+        assert ext_id.startswith("nastarixa.inkscape.ruler_"), ext_id
         assert ext_id.endswith("_" + preset.replace("-", "_"))
+        assert "fully restart Inkscape" in root.findtext(INX_NS + "description")
+        tip = root.findtext(".//" + INX_NS + "menu-tip") or ""
+        assert "restart Inkscape after install" in tip, tip
 
         presets = next(p for p in root.findall(".//" + INX_NS + "param")
                        if p.get("name") == "preset")
@@ -666,7 +688,10 @@ def test_inx_definition():
     root = ET.parse(HERE / "ruler.inx").getroot()
     assert root.findtext(INX_NS + "name") == (
         "Nastarxa Inkscape Ruler Extension")
-    assert root.findtext(INX_NS + "id") == "org.inkscape.effect.object_ruler"
+    assert root.findtext(INX_NS + "id") == "nastarixa.inkscape.ruler"
+    assert "fully restart Inkscape" in root.findtext(INX_NS + "description")
+    tip = root.findtext(".//" + INX_NS + "menu-tip") or ""
+    assert "restart Inkscape after install" in tip, tip
     names = {p.get("name") for p in root.findall(".//" + INX_NS + "param")}
     expected = {
         "show_top", "show_bottom", "show_left", "show_right", "origin",
@@ -710,6 +735,16 @@ def test_stdin_fallback():
     print("stdin fallback: OK", labels)
 
 
+def test_package_restart_notice():
+    metadata = json.loads((HERE / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata.get("version") == "1.14"
+    summary = metadata.get("summary") or ""
+    assert "fully restart Inkscape" in summary, summary
+    readme = (HERE / "README.md").read_text(encoding="utf-8")
+    assert "fully restart Inkscape" in readme
+    print("package restart notice: OK")
+
+
 def test_install_creates_package_subfolder():
     with tempfile.TemporaryDirectory() as tmp:
         parent = Path(tmp) / "missing" / "inkscape" / "extensions"
@@ -720,6 +755,11 @@ def test_install_creates_package_subfolder():
             "<name>Object Ruler - Minimal</name>", encoding="utf-8")
         (parent / "object-ruler.json").write_text(
             '{"name": "Object Ruler"}', encoding="utf-8")
+        legacy = parent / "org.inkscape.effect.object_ruler"
+        legacy.mkdir()
+        (legacy / "ruler.inx").write_text(
+            "<id>org.inkscape.effect.object_ruler</id><name>Object Ruler</name>",
+            encoding="utf-8")
 
         proc = subprocess.run(
             [sys.executable, str(HERE / "install_managed.py"), str(parent)],
@@ -731,7 +771,8 @@ def test_install_creates_package_subfolder():
         assert target.is_dir()
         assert (target / "ruler.inx").is_file()
         assert (target / "ruler.py").is_file()
-        assert (target / "object-ruler.json").is_file()
+        assert (target / "nastarixa.inkscape.ruler.json").is_file()
+        assert not legacy.exists()
         for name in ("ruler.inx", "ruler.py", "ruler-minimal.inx",
                      "object-ruler.json"):
             assert not (parent / name).exists(), name
@@ -761,6 +802,7 @@ if __name__ == "__main__":
     test_vertical_total_padding()
     test_label_options()
     test_text_border()
+    test_text_stroke_caps_joins()
     test_presets()
     test_generated_preset_inx()
     test_old_rulers_untouched()
@@ -768,5 +810,6 @@ if __name__ == "__main__":
     test_inx_definition()
     test_inkscape_argument_order()
     test_stdin_fallback()
+    test_package_restart_notice()
     test_install_creates_package_subfolder()
     print("All tests passed.")

@@ -23,9 +23,11 @@ HERE = Path(__file__).parent
 PACKAGE_DIR_NAME = "nastarixa.inkscape.ruler"
 FILES = (["ruler.inx", "ruler.py", "README.md", "LICENSE.txt"] +
          sorted(p.name for p in HERE.glob("ruler-*.inx")))
-METADATA_NAME = "object-ruler.json"
+METADATA_NAME = "nastarixa.inkscape.ruler.json"
+OLD_METADATA_NAMES = ("object-ruler.json", METADATA_NAME)
+LEGACY_FOLDER_NAMES = ("object-ruler", "org.inkscape.effect.object_ruler")
 MARKERS = ("Nastarxa Inkscape Ruler Extension", "Object Ruler",
-           "org.inkscape.effect.object_ruler")
+           "nastarixa.inkscape.ruler", "org.inkscape.effect.object_ruler")
 
 
 def base_extensions_dir():
@@ -75,7 +77,7 @@ def _unlink(path):
 def remove_old_flat_install(target):
     """Delete older flat installs from the parent extensions folder."""
     parent = target.parent
-    for name in ("ruler.inx", "ruler.py", METADATA_NAME):
+    for name in ("ruler.inx", "ruler.py") + OLD_METADATA_NAMES:
         path = parent / name
         if path.is_file() and _contains_marker(path):
             _unlink(path)
@@ -90,20 +92,21 @@ def remove_old_flat_install(target):
 
 
 def remove_old_subfolder_install(target):
-    """Remove a legacy object-ruler subfolder so the menu is not duplicated."""
-    old = target.parent / "object-ruler"
-    if not old.is_dir():
-        return
-    for name in FILES + ["metadata.json", "info.json"]:
-        path = old / name
-        if path.is_file():
+    """Remove legacy managed folders so the menu is not duplicated."""
+    for folder_name in LEGACY_FOLDER_NAMES:
+        old = target.parent / folder_name
+        if not old.is_dir():
+            continue
+        for name in FILES + list(OLD_METADATA_NAMES) + ["metadata.json", "info.json"]:
+            path = old / name
+            if path.is_file():
+                _unlink(path)
+        for path in old.glob("ruler-*.inx"):
             _unlink(path)
-    for path in old.glob("ruler-*.inx"):
-        _unlink(path)
-    try:
-        old.rmdir()
-    except OSError:
-        pass  # leave unrelated files alone
+        try:
+            old.rmdir()
+        except OSError:
+            pass  # leave unrelated files alone
 
 
 def remove_stale_generated(target):

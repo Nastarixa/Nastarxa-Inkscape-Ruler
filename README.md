@@ -1,6 +1,6 @@
 # Nastarxa Inkscape Ruler Extension
 
-Version 1.11 — tested with Inkscape 1.4.4.
+Version 1.14 — tested with Inkscape 1.4.4.
 
 Draw configurable measuring rulers around the bounding box of a selected object.
 Rulers can be placed on any combination of the **top**, **bottom**, **left** and
@@ -16,6 +16,7 @@ plain SVG that stays editable and exports cleanly to PNG or PDF.
 - Style presets that visibly set every appearance value, including all colors
 - **Line fill and border color** controls both `fill` and `stroke` on ruler lines
 - **Text fill color** and always-applied **Text border color**
+- Text strokes use round caps and round joins on zero, number and total labels
 - Square line caps and one shared **Line width** for every line and tick
 - Independent **Label font size** and **Total label font size**
 - Bottom/right labels get extra clearance; left/right rotated totals keep a
@@ -27,6 +28,12 @@ plain SVG that stays editable and exports cleanly to PNG or PDF.
 
 ## Install
 
+> **Important:** after installing by any method, **fully restart Inkscape** —
+> close every Inkscape window and open it again. Inkscape scans installed
+> extensions only at startup, so the menu entries will not appear until you
+> restart. This applies to Extension Manager, the ZIP installer and the batch
+> installer.
+
 ### Single ZIP via Extension Manager
 
 `Nastarxa Inkscape Ruler.zip` is the only file you need to release or download.
@@ -34,12 +41,14 @@ plain SVG that stays editable and exports cleanly to PNG or PDF.
 1. Open **Extensions → Manage Extensions**.
 2. Choose **Install from file**.
 3. Select `Nastarxa Inkscape Ruler.zip`.
-4. Restart Inkscape.
+4. Fully restart Inkscape (close all Inkscape windows and reopen it).
 5. Use **Extensions → Ruler Tools → Nastarxa Inkscape Ruler Extension**.
 
 The ZIP contains every `.inx` file, the script, README, license and
-`metadata.json` at its root. The metadata file list matches those contents, so
-the manager can register and later uninstall the package.
+`metadata.json` at its root. Both the INX id and package metadata id are
+`nastarixa.inkscape.ruler`, so Inkscape creates a folder with that exact name.
+The metadata file list matches the ZIP contents, so the manager can register
+and later uninstall the package.
 
 ### Inkscape 1.4.4 note
 
@@ -180,7 +189,7 @@ the Python standard library.
 - `diagnose.bat`, `diagnose.py` — installation diagnostics
 - `Nastarxa Inkscape Ruler.zip` — single release package for Extension Manager
 - `package.bat`, `package.py` — rebuild `Nastarxa Inkscape Ruler.zip`
-- `metadata.json` — Extension Manager metadata
+- `metadata.json` — Extension Manager metadata (`nastarixa.inkscape.ruler`)
 - `test_ruler.py` — smoke tests
 - `CHANGELOG.md` — release history
 - `LICENSE.txt` — MIT license

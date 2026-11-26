@@ -11,6 +11,7 @@ from xml.etree import ElementTree as ET
 
 HERE = Path(__file__).parent
 EXTENSION_NAME = "Nastarxa Inkscape Ruler Extension"
+EXTENSION_ID = "nastarixa.inkscape.ruler"
 NS = "http://www.inkscape.org/namespace/inkscape/extension"
 INK = "{%s}" % NS
 ET.register_namespace("", NS)
@@ -67,12 +68,16 @@ def generate():
 
         root.find(q("name")).text = EXTENSION_NAME + " - " + label
         root.find(q("id")).text = (
-            "org.inkscape.effect.object_ruler_" + key.replace("-", "_"))
+            EXTENSION_ID + "_" + key.replace("-", "_"))
         root.find(q("description")).text = (
-            "Draw measuring rulers using the %s style." % label)
+            "Draw measuring rulers using the %s style. "
+            "After installing, fully restart Inkscape before using this extension."
+            % label)
         tip = root.find(".//" + q("menu-tip"))
         if tip is not None:
-            tip.text = "Draw rulers using the %s preset" % label
+            tip.text = (
+                "Draw rulers using the %s preset (restart Inkscape after install)"
+                % label)
 
         for param in root.iter(q("param")):
             name = param.get("name")
