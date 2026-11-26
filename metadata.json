@@ -8,7 +8,7 @@
     "html": ""
   },
   "summary": "Draw measuring rulers on chosen sides of the selected object. After installing, fully restart Inkscape before using the extension; Inkscape only registers new extensions at startup.",
-  "version": "1.14",
+  "version": "1.15",
   "license": "MIT",
   "stats": {
     "liked": 0,

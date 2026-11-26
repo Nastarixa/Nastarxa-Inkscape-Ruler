@@ -145,22 +145,55 @@ def parent_group_id(root, child_id):
 def test_cm():
     root = run(["--id=box", "--unit=cm"])
     labels = totals(root)
-    assert "2 cm" in labels and "5 cm" in labels, labels
+    assert "7.56 cm" in labels and "18.9 cm" in labels, labels
     print("cm: OK", labels)
 
 
 def test_mm():
     root = run(["--id=box", "--unit=mm"])
     labels = totals(root)
-    assert "20 mm" in labels and "50 mm" in labels, labels
+    assert "75.6 mm" in labels and "189 mm" in labels, labels
     print("mm: OK", labels)
 
 
 def test_inches():
     root = run(["--id=box", "--unit=in"])
     labels = totals(root)
-    assert len(labels) == 2 and all(label.endswith("in") for label in labels), labels
+    assert "2.9764 in" in labels and "7.4409 in" in labels, labels
     print("in: OK", labels)
+
+
+MM_CURVE_SVG = '''<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     width="210mm" height="297mm" viewBox="0 0 210 297">
+  <g id="wrapper">
+    <path id="curve" d="M 0 0 C 20 0 20 20 0 20 Z"/>
+    <g id="object-ruler-generated" inkscape:label="Object Ruler">
+      <line x1="-100" y1="-100" x2="500" y2="500"/>
+    </g>
+  </g>
+</svg>
+'''
+
+
+def test_physical_document_curve_bbox():
+    """mm viewBox documents measure in mm and ignore old ruler geometry."""
+    doc = ET.fromstring(MM_CURVE_SVG)
+    bbox = RULER.selected_bbox(doc, ["wrapper"])
+    assert bbox is not None
+    assert abs((bbox[2] - bbox[0]) - 15.0) < 1e-6, bbox
+    assert abs((bbox[3] - bbox[1]) - 20.0) < 1e-6, bbox
+    assert abs(RULER.svg_user_unit_scale(doc) - (96.0 / 25.4)) < 1e-9
+
+    px_doc = ET.fromstring(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"/>')
+    assert RULER.svg_user_unit_scale(px_doc) == 1.0
+
+    root = run_svg(MM_CURVE_SVG, ["--id=wrapper", "--unit=mm"])
+    labels = totals(root)
+    assert "15 mm" in labels and "20 mm" in labels, labels
+    print("physical document curve bbox: OK", labels)
 
 
 def test_no_labels():
@@ -724,20 +757,20 @@ def test_inx_definition():
 def test_inkscape_argument_order():
     root = run(["--id=box", "--unit=cm"], input_first=False)
     labels = totals(root)
-    assert "2 cm" in labels and "5 cm" in labels, labels
+    assert "7.56 cm" in labels and "18.9 cm" in labels, labels
     print("inkscape argument order: OK", labels)
 
 
 def test_stdin_fallback():
     root = run_stdin(["--id=box", "--unit=cm"])
     labels = totals(root)
-    assert "2 cm" in labels and "5 cm" in labels, labels
+    assert "7.56 cm" in labels and "18.9 cm" in labels, labels
     print("stdin fallback: OK", labels)
 
 
 def test_package_restart_notice():
     metadata = json.loads((HERE / "metadata.json").read_text(encoding="utf-8"))
-    assert metadata.get("version") == "1.14"
+    assert metadata.get("version") == "1.15"
     summary = metadata.get("summary") or ""
     assert "fully restart Inkscape" in summary, summary
     readme = (HERE / "README.md").read_text(encoding="utf-8")
@@ -783,6 +816,7 @@ if __name__ == "__main__":
     test_cm()
     test_mm()
     test_inches()
+    test_physical_document_curve_bbox()
     test_no_labels()
     test_ungrouped()
     test_selection_bbox_cases()

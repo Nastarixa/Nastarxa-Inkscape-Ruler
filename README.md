@@ -1,6 +1,6 @@
 # Nastarxa Inkscape Ruler Extension
 
-Version 1.14 — tested with Inkscape 1.4.4.
+Version 1.15 — tested with Inkscape 1.4.4.
 
 Draw configurable measuring rulers around the bounding box of a selected object.
 Rulers can be placed on any combination of the **top**, **bottom**, **left** and
@@ -11,6 +11,8 @@ plain SVG that stays editable and exports cleanly to PNG or PDF.
 ## Features
 
 - Units: `mm`, `cm`, `pt`, `pc`, `in`, `px`
+- Measurements respect the document viewBox scale (mm documents report mm)
+- Path bounds use true curve extrema, not oversized Bezier control handles
 - Independent top, bottom, left and right rulers
 - Three dialog pages: **Measurement**, **Appearance**, **Object**
 - Style presets that visibly set every appearance value, including all colors

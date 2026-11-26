@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.15
+
+- Fixed total labels in documents whose viewBox maps user units to physical
+  units. A `210mm` page with `viewBox="0 0 210 297"` now reports one user unit
+  as one millimetre instead of treating it as a CSS pixel.
+- Fixed path bounding boxes: Bezier control handles are no longer counted as
+  geometry. Curve extrema and elliptical arc extrema are measured instead, so
+  `test.svg` now reports `19.299 x 66.764 mm`.
+- Default labels now show three decimal places for millimetre-level detail.
+
 ## 1.14
 
 - Package details now state that Inkscape must be fully restarted after

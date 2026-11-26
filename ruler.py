@@ -34,7 +34,9 @@ def q(tag):
 
 
 # ---------------------------------------------------------------------------
-# Units: SVG user units (px) to physical measurement systems
+# Units: CSS px to physical measurement systems. A document viewBox can make
+# one SVG user unit larger or smaller than one CSS px, so the root scale is
+# applied before measurements are displayed.
 # ---------------------------------------------------------------------------
 UNIT_TO_PX = {
     "px": 1.0,
@@ -53,6 +55,51 @@ UNIT_LABEL = {
     "pt": "pt",
     "pc": "pc",
 }
+
+_LENGTH_RE = re.compile(
+    r"^\s*([-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?)\s*([a-zA-Z%]*)\s*$")
+
+
+def length_in_px(value):
+    """Parse an SVG length such as ``210mm`` or ``96`` into CSS pixels."""
+    if value is None:
+        return None
+    match = _LENGTH_RE.match(str(value))
+    if not match:
+        return None
+    number = float(match.group(1))
+    unit = (match.group(2) or "px").lower()
+    if unit not in UNIT_TO_PX:
+        return None
+    return number * UNIT_TO_PX[unit]
+
+
+def svg_user_unit_scale(root):
+    """Return CSS px per document user unit from width/height and viewBox."""
+    if root is None:
+        return 1.0
+    width = length_in_px(root.get("width"))
+    height = length_in_px(root.get("height"))
+    view_box = root.get("viewBox")
+    if width is None or height is None or not view_box:
+        return 1.0
+    nums = [v for v in view_box.replace(",", " ").split() if v]
+    if len(nums) < 4:
+        return 1.0
+    try:
+        vb_w, vb_h = float(nums[2]), float(nums[3])
+    except ValueError:
+        return 1.0
+    if vb_w <= 0 or vb_h <= 0:
+        return 1.0
+    sx, sy = width / vb_w, height / vb_h
+    if sx <= 0 or sy <= 0:
+        return 1.0
+    if abs(sx - sy) <= 1e-6 * max(abs(sx), abs(sy)):
+        return (sx + sy) / 2.0
+    # Non-uniform viewBox scaling has no single correct answer; the geometric
+    # mean keeps horizontal and vertical totals consistent.
+    return math.sqrt(sx * sy)
 
 
 def css_color(value, default):
@@ -314,14 +361,120 @@ def _is_number(token):
         return False
 
 
+def _cubic_extrema(p0, p1, p2, p3):
+    """Points where a cubic Bezier touches horizontal/vertical extremes."""
+    out = []
+    for axis in (0, 1):
+        a = -p0[axis] + 3 * p1[axis] - 3 * p2[axis] + p3[axis]
+        b = 2 * (p0[axis] - 2 * p1[axis] + p2[axis])
+        c = p1[axis] - p0[axis]
+        roots = []
+        if abs(a) < 1e-12:
+            if abs(b) > 1e-12:
+                roots.append(-c / b)
+        else:
+            disc = b * b - 4 * a * c
+            if disc >= 0:
+                sq = math.sqrt(disc)
+                roots.extend(((-b + sq) / (2 * a), (-b - sq) / (2 * a)))
+        for t in roots:
+            if 0 < t < 1:
+                mt = 1 - t
+                out.append((
+                    mt ** 3 * p0[0] + 3 * mt * mt * t * p1[0] +
+                    3 * mt * t * t * p2[0] + t ** 3 * p3[0],
+                    mt ** 3 * p0[1] + 3 * mt * mt * t * p1[1] +
+                    3 * mt * t * t * p2[1] + t ** 3 * p3[1],
+                ))
+    return out
+
+
+def _quad_extrema(p0, p1, p2):
+    """Points where a quadratic Bezier touches horizontal/vertical extremes."""
+    out = []
+    for axis in (0, 1):
+        den = p0[axis] - 2 * p1[axis] + p2[axis]
+        if abs(den) < 1e-12:
+            continue
+        t = (p0[axis] - p1[axis]) / den
+        if 0 < t < 1:
+            mt = 1 - t
+            out.append((mt * mt * p0[0] + 2 * mt * t * p1[0] + t * t * p2[0],
+                        mt * mt * p0[1] + 2 * mt * t * p1[1] + t * t * p2[1]))
+    return out
+
+
+def _arc_points(p0, rx, ry, phi, large, sweep, p1):
+    """Endpoint plus true axis-aligned extrema of an SVG elliptical arc."""
+    rx, ry = abs(rx), abs(ry)
+    if (rx < 1e-12 or ry < 1e-12 or
+            (abs(p0[0] - p1[0]) < 1e-12 and abs(p0[1] - p1[1]) < 1e-12)):
+        return [p1]
+
+    ph = math.radians(phi)
+    cos_p, sin_p = math.cos(ph), math.sin(ph)
+    dx2, dy2 = (p0[0] - p1[0]) / 2.0, (p0[1] - p1[1]) / 2.0
+    x1p = cos_p * dx2 + sin_p * dy2
+    y1p = -sin_p * dx2 + cos_p * dy2
+
+    lam = x1p * x1p / (rx * rx) + y1p * y1p / (ry * ry)
+    if lam > 1:
+        scale = math.sqrt(lam)
+        rx *= scale
+        ry *= scale
+
+    num = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p
+    den = rx * rx * y1p * y1p + ry * ry * x1p * x1p
+    coef = math.sqrt(max(0.0, num / den)) if den else 0.0
+    if large == sweep:
+        coef = -coef
+    cxp = coef * rx * y1p / ry
+    cyp = -coef * ry * x1p / rx
+    cx = cos_p * cxp - sin_p * cyp + (p0[0] + p1[0]) / 2.0
+    cy = sin_p * cxp + cos_p * cyp + (p0[1] + p1[1]) / 2.0
+
+    theta1 = math.atan2((y1p - cyp) / ry, (x1p - cxp) / rx)
+    theta2 = math.atan2((-y1p - cyp) / ry, (-x1p - cxp) / rx)
+    delta = theta2 - theta1
+    if not sweep and delta > 0:
+        delta -= 2 * math.pi
+    elif sweep and delta < 0:
+        delta += 2 * math.pi
+
+    angles = [theta1, theta2]
+    if abs(cos_p * rx) > 1e-12:
+        base_x = math.atan(-(sin_p * ry) / (cos_p * rx))
+    else:
+        base_x = math.pi / 2.0
+    if abs(sin_p * rx) > 1e-12:
+        base_y = math.atan((cos_p * ry) / (sin_p * rx))
+    else:
+        base_y = 0.0
+    candidates = []
+    for base in (base_x, base_y):
+        candidates.extend(base + k * math.pi for k in (-1, 0, 1, 2))
+    lo, hi = min(theta1, theta1 + delta), max(theta1, theta1 + delta)
+    angles.extend(t for t in candidates if lo < t < hi)
+
+    return [(
+        cx + cos_p * rx * math.cos(t) - sin_p * ry * math.sin(t),
+        cy + sin_p * rx * math.cos(t) + cos_p * ry * math.sin(t),
+    ) for t in angles]
+
+
 def parse_path_points(d):
-    """Extract coordinate pairs from an SVG path (good enough for bbox fallback)."""
-    import re
-    tokens = re.findall(r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?|[MmZzLlHhVvCcSsQqTtAa]", d)
+    """Sample a path at endpoints and curve extrema for an accurate bbox.
+
+    Bezier control handles are deliberately excluded: they are not on the
+    curve and would inflate the measured object.
+    """
+    tokens = re.findall(
+        r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?|[MmZzLlHhVvCcSsQqTtAa]",
+        d)
     points = []
     i = 0
-    cx = cy = 0.0
-    sx = sy = 0.0
+    cx = cy = sx = sy = 0.0
+    px = py = None
     cmd = None
     while i < len(tokens):
         t = tokens[i]
@@ -330,6 +483,9 @@ def parse_path_points(d):
             i += 1
             if cmd in "Zz":
                 cx, cy = sx, sy
+                points.append((cx, cy))
+                px = py = None
+                cmd = None
                 continue
         if cmd is None:
             i += 1
@@ -337,39 +493,75 @@ def parse_path_points(d):
         upper = cmd.upper()
         relative = cmd.islower()
         try:
-            if upper in ("M", "L", "T"):
+            if upper == "M":
                 x, y = float(tokens[i]), float(tokens[i + 1]); i += 2
-                if relative: x += cx; y += cy
+                if relative:
+                    x += cx; y += cy
                 cx, cy = x, y
-                if upper == "M": sx, sy = cx, cy; cmd = "l" if relative else "L"
+                sx, sy = x, y
                 points.append((cx, cy))
+                px = py = None
+                cmd = "l" if relative else "L"
+            elif upper == "L":
+                x, y = float(tokens[i]), float(tokens[i + 1]); i += 2
+                if relative:
+                    x += cx; y += cy
+                cx, cy = x, y
+                points.append((cx, cy))
+                px = py = None
             elif upper == "H":
                 x = float(tokens[i]); i += 1
                 cx = cx + x if relative else x
                 points.append((cx, cy))
+                px = py = None
             elif upper == "V":
                 y = float(tokens[i]); i += 1
                 cy = cy + y if relative else y
                 points.append((cx, cy))
-            elif upper in ("C", "S", "Q"):
+                px = py = None
+            elif upper in ("C", "S"):
                 count = 6 if upper == "C" else 4
                 vals = [float(v) for v in tokens[i:i + count]]; i += count
                 if relative:
                     vals = [vals[j] + (cx if j % 2 == 0 else cy) for j in range(count)]
+                p0 = (cx, cy)
                 if upper == "C":
-                    cx, cy = vals[4], vals[5]
+                    p1, p2, p3 = (vals[0], vals[1]), (vals[2], vals[3]), (vals[4], vals[5])
                 else:
-                    cx, cy = vals[2], vals[3]
-                for j in range(0, count, 2):
-                    points.append((vals[j], vals[j + 1]))
-                if upper == "S": cmd = "s" if relative else "S"
-                if upper == "Q": cmd = "t" if relative else "T"
+                    p1 = p0 if px is None else (2 * cx - px, 2 * cy - py)
+                    p2, p3 = (vals[0], vals[1]), (vals[2], vals[3])
+                points.extend([p0, p3] + _cubic_extrema(p0, p1, p2, p3))
+                cx, cy = p3
+                px, py = p2
+            elif upper == "Q":
+                vals = [float(v) for v in tokens[i:i + 4]]; i += 4
+                if relative:
+                    vals = [vals[j] + (cx if j % 2 == 0 else cy) for j in range(4)]
+                p0 = (cx, cy)
+                p1, p2 = (vals[0], vals[1]), (vals[2], vals[3])
+                points.extend([p0, p2] + _quad_extrema(p0, p1, p2))
+                cx, cy = p2
+                px, py = p1
+            elif upper == "T":
+                x, y = float(tokens[i]), float(tokens[i + 1]); i += 2
+                if relative:
+                    x += cx; y += cy
+                p0 = (cx, cy)
+                p1 = p0 if px is None else (2 * cx - px, 2 * cy - py)
+                p2 = (x, y)
+                points.extend([p0, p2] + _quad_extrema(p0, p1, p2))
+                cx, cy = p2
+                px, py = p1
             elif upper == "A":
                 vals = [float(v) for v in tokens[i:i + 7]]; i += 7
                 x, y = vals[5], vals[6]
-                if relative: x += cx; y += cy
+                if relative:
+                    x += cx; y += cy
+                points.extend(_arc_points(
+                    (cx, cy), vals[0], vals[1], vals[2],
+                    bool(vals[3]), bool(vals[4]), (x, y)))
                 cx, cy = x, y
-                points.append((cx, cy))
+                px = py = None
             else:
                 i += 1
         except (ValueError, IndexError):
@@ -488,12 +680,18 @@ def bbox_of_element(elem, parent_transform=None, root=None, visited=None):
                 add_box(nums[0], nums[1], nums[2], nums[3])
 
     # Groups and any unsupported container types recurse into their children.
+    # A selected parent may contain an old ruler; never let that ruler inflate
+    # the bounding box of the real object.
     if not pts:
+        old_rulers = generated_ruler_roots(root) if root is not None else []
         for child in elem:
-            if isinstance(child.tag, str):
-                cb = bbox_of_element(child, t, root, seen)
-                if cb:
-                    pts.extend([(cb[0], cb[1]), (cb[2], cb[3])])
+            if not isinstance(child.tag, str):
+                continue
+            if any(r is child or _is_ancestor(r, child) for r in old_rulers):
+                continue
+            cb = bbox_of_element(child, t, root, seen)
+            if cb:
+                pts.extend([(cb[0], cb[1]), (cb[2], cb[3])])
 
     if not pts:
         return None
@@ -604,13 +802,15 @@ def fmt_number(value, precision=6):
     return ("%.*f" % (precision, value)).rstrip("0").rstrip(".")
 
 
-def fmt_label(value, px_per_unit, decimals=-1):
+def fmt_label(value, units_per_unit, decimals=-1):
     """Human-friendly measurement; decimals=-1 uses display-based precision."""
     if abs(value) < 1e-9:
         return "0"
     if decimals >= 0:
         return ("%.*f" % (decimals, value))
-    quantum = 0.1 / px_per_unit
+    # Show millimetre-level detail by default so a 19.299 mm object is not
+    # reported as 19.3 mm. Inches and pixels still trim trailing zeros below.
+    quantum = 0.001 / units_per_unit
     if quantum >= 1:
         rounded = round(value / quantum) * quantum
         return str(int(rounded)) if abs(rounded - round(rounded)) < 1e-9 else fmt_number(rounded)
@@ -639,7 +839,11 @@ def build_ruler_group(bbox, opts, root=None):
     if obj_w <= 0 or obj_h <= 0:
         raise ValueError("Selected object must have a positive width and height.")
 
-    px_per_unit = UNIT_TO_PX[opts["unit"]]
+    # Bounds are measured in document user units. Convert those to the chosen
+    # display unit using the root viewBox scale. For a typical mm document
+    # (width="210mm" viewBox="0 0 210 297") one user unit is one millimetre.
+    user_scale = svg_user_unit_scale(root)
+    units_per_unit = UNIT_TO_PX[opts["unit"]] / user_scale
     label = UNIT_LABEL[opts["unit"]]
     gap = float(opts["offset"])
     major_len = float(opts["major_length"])   # long ticks at start/end
@@ -736,14 +940,14 @@ def build_ruler_group(bbox, opts, root=None):
     def axis_ticks(total_px, step_px):
         """Return sorted (offset_px, value_units, is_major) tick definitions."""
         majors = aligned_majors(total_px, step_px)
-        total_units = total_px / px_per_unit
+        total_units = total_px / units_per_unit
 
         def value_at(off):
             if origin == "center":
-                return off / px_per_unit - total_units / 2.0
+                return off / units_per_unit - total_units / 2.0
             if origin == "end":
-                return off / px_per_unit - total_units
-            return off / px_per_unit
+                return off / units_per_unit - total_units
+            return off / units_per_unit
 
         bounds = [0.0] + majors + [total_px]
         clean = []
@@ -871,10 +1075,10 @@ def build_ruler_group(bbox, opts, root=None):
         t.text = text
         return t
 
-    total_x = obj_w / px_per_unit
-    total_y = obj_h / px_per_unit
-    major_x = max(1e-6, nice_step(total_x, max(1, int(total_x / 3))) * px_per_unit)
-    major_y = max(1e-6, nice_step(total_y, max(1, int(total_y / 3))) * px_per_unit)
+    total_x = obj_w / units_per_unit
+    total_y = obj_h / units_per_unit
+    major_x = max(1e-6, nice_step(total_x, max(1, int(total_x / 3))) * units_per_unit)
+    major_y = max(1e-6, nice_step(total_y, max(1, int(total_y / 3))) * units_per_unit)
 
     # --- horizontal rulers (top / bottom) ---
     for side_name in ("top", "bottom"):
@@ -896,7 +1100,7 @@ def build_ruler_group(bbox, opts, root=None):
             if (show_labels and is_major and label_mode == "all" and
                     abs(value) > eps and abs(off) > eps and abs(off - obj_w) > eps):
                 add_text(parent, x, label_y,
-                         fmt_label(value, px_per_unit, label_decimals), "ruler-label")
+                         fmt_label(value, units_per_unit, label_decimals), "ruler-label")
 
         if show_labels and show_zero:
             zero_off = {"start": 0.0, "center": obj_w / 2.0, "end": obj_w}[origin]
@@ -906,7 +1110,7 @@ def build_ruler_group(bbox, opts, root=None):
             total_y_text = total_label_y + (
                 -total_font_size * 1.15 if side_name == "top" else total_font_size * 1.15)
             add_text(parent, obj_ox + obj_w / 2.0, total_y_text,
-                     "%s %s" % (fmt_label(total_x, px_per_unit, label_decimals), label),
+                     "%s %s" % (fmt_label(total_x, units_per_unit, label_decimals), label),
                      "ruler-total", size=total_font_size)
 
     # --- vertical rulers (left / right) ---
@@ -928,7 +1132,7 @@ def build_ruler_group(bbox, opts, root=None):
             add_line(parent, baseline_x, y, baseline_x + direction * tick_len, y, cls)
             if (show_labels and is_major and label_mode == "all" and
                     abs(value) > eps and abs(off) > eps and abs(off - obj_h) > eps):
-                value_text = fmt_label(value, px_per_unit, label_decimals)
+                value_text = fmt_label(value, units_per_unit, label_decimals)
                 number_widths.append(approx_text_width(value_text, label_font_size))
                 add_text(parent, label_x, y + label_font_size * 0.35,
                          value_text, "ruler-label", anchor=label_anchor)
@@ -949,7 +1153,7 @@ def build_ruler_group(bbox, opts, root=None):
                 -total_offset if side_name == "left" else total_offset)
             center_y = obj_oy + obj_h / 2.0
             add_text(parent, total_x_text, center_y,
-                     "%s %s" % (fmt_label(total_y, px_per_unit, label_decimals), label),
+                     "%s %s" % (fmt_label(total_y, units_per_unit, label_decimals), label),
                      "ruler-total", anchor="middle", size=total_font_size,
                      rotate=(-90 if side_name == "left" else 90, total_x_text, center_y))
 
