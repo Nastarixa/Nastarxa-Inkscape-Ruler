@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Nastarxa Inkscape Ruler Extension - Technical</name>
+  <id>org.inkscape.effect.object_ruler_technical</id>
+  <description>Draw measuring rulers using the Technical style.</description>
+  <param name="ruler_tabs" type="notebook">
+    <page name="measure" gui-text="Measurement">
+      <param name="unit" type="optiongroup" appearance="combo" gui-text="Ruler unit">
+        <option translatable="no" value="mm">mm (millimeter)</option>
+        <option translatable="no" value="cm">cm (centimeter)</option>
+        <option translatable="no" value="pt">pt (point)</option>
+        <option translatable="no" value="pc">pc (pica)</option>
+        <option translatable="no" value="in">in (inch)</option>
+        <option translatable="no" value="px">px (pixel)</option>
+      </param>
+      <param name="show_top" type="bool" gui-text="Top ruler">true</param>
+      <param name="show_bottom" type="bool" gui-text="Bottom ruler">false</param>
+      <param name="show_left" type="bool" gui-text="Left ruler">true</param>
+      <param name="show_right" type="bool" gui-text="Right ruler">false</param>
+      <param name="origin" type="optiongroup" appearance="combo" gui-text="Zero point">
+        <option translatable="no" value="start">Top / left</option>
+        <option translatable="no" value="center">Center</option>
+        <option translatable="no" value="end">Bottom / right</option>
+      </param>
+      <param name="minor_divisions" type="int" min="1" max="20" gui-text="Minor ticks per major unit">10</param>
+      <param name="show_labels" type="bool" gui-text="Show tick numbers and unit label">true</param>
+      <param name="show_zero" type="bool" gui-text="Show zero label">true</param>
+      <param name="label_mode" type="optiongroup" appearance="combo" gui-text="Tick labels">
+        <option translatable="no" value="all" default="true">All major ticks</option>
+        <option translatable="no" value="origin-total">Zero and total only</option>
+      </param>
+      <param name="label_decimals" type="int" min="-1" max="4" gui-text="Label decimals (-1 auto)">1</param>
+    </page>
+    <page name="appearance" gui-text="Appearance">
+      <param name="preset" type="optiongroup" appearance="combo" gui-text="Style preset">
+        <option translatable="no" value="technical" default="true">Technical</option>
+        <option translatable="no" value="custom">Custom</option>
+        <option translatable="no" value="minimal">Minimal</option>
+        <option translatable="no" value="compact">Compact</option>
+        <option translatable="no" value="blueprint">Blueprint</option>
+        <option translatable="no" value="high-contrast">High contrast</option>
+        <option translatable="no" value="export">Dark export</option>
+        <option translatable="no" value="warm">Warm</option>
+      </param>
+      <param name="text_color" type="color" appearance="colorbutton" gui-text="Text fill color">0x374151ff</param>
+      <param name="text_border_color" type="color" appearance="colorbutton" gui-text="Text border color">0xffffffff</param>
+      <param name="line_color" type="color" appearance="colorbutton" gui-text="Line fill and border color">0x111827ff</param>
+      <param name="offset" type="float" min="0" max="200" gui-text="Gap from object (px)">8</param>
+      <param name="major_length" type="float" min="1" max="200" gui-text="Major tick length (px)">18</param>
+      <param name="minor_length" type="float" min="1" max="200" gui-text="Minor tick length (px)">9</param>
+      <param name="label_font_size" type="float" min="1" max="200" gui-text="Label font size (px)">11</param>
+      <param name="total_font_size" type="float" min="1" max="200" gui-text="Total label font size (px)">14</param>
+      <param name="tick_direction" type="optiongroup" appearance="combo" gui-text="Tick direction">
+        <option translatable="no" value="out">Outward</option>
+        <option translatable="no" value="in">Inward</option>
+      </param>
+      <param name="auto_fit" type="bool" gui-text="Auto-shrink for small objects">true</param>
+      <param name="line_width" type="float" min="0.1" max="10" gui-text="Line width (px)">1.2</param>
+      <param name="text_gap" type="float" min="0" max="100" gui-text="Text-to-line gap (px)">4</param>
+    </page>
+    <page name="object" gui-text="Object">
+      <param name="group_with_object" type="bool" gui-text="Group object with ruler">true</param>
+    </page>
+  </param>
+  <effect needs-live-preview="false">
+    <object-type>all</object-type>
+    <effects-menu>
+      <submenu name="Ruler Tools" />
+    </effects-menu>
+    <menu-tip>Draw rulers using the Technical preset</menu-tip>
+  </effect>
+  <script>
+    <command location="inx" interpreter="python">ruler.py</command>
+  </script>
+</inkscape-extension>

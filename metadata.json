@@ -1,0 +1,38 @@
+{
+  "id": "object-ruler",
+  "name": "Nastarxa Inkscape Ruler Extension",
+  "author": "Nastarxa",
+  "verified": false,
+  "links": {
+    "file": "",
+    "html": ""
+  },
+  "summary": "Draw measuring rulers on chosen sides of the selected object, exportable as an image.",
+  "version": "1.11",
+  "license": "MIT",
+  "stats": {
+    "liked": 0,
+    "downloaded": 0,
+    "revisions": 0
+  },
+  "Inkscape Version": [
+    "1.0",
+    "1.1",
+    "1.2",
+    "1.3",
+    "1.4"
+  ],
+  "files": [
+    "ruler.inx",
+    "ruler.py",
+    "README.md",
+    "LICENSE.txt",
+    "ruler-blueprint.inx",
+    "ruler-compact.inx",
+    "ruler-export.inx",
+    "ruler-high-contrast.inx",
+    "ruler-minimal.inx",
+    "ruler-technical.inx",
+    "ruler-warm.inx"
+  ]
+}
